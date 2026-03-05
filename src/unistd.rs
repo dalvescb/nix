@@ -2213,21 +2213,27 @@ feature! {
 pub mod acct {
     use crate::errno::Errno;
     use crate::{NixPath, Result};
+    #[cfg(not(target_os = "aix"))]
     use std::ptr;
 
     /// Enable process accounting
     ///
     /// See also [acct(2)](https://linux.die.net/man/2/acct)
     pub fn enable<P: ?Sized + NixPath>(filename: &P) -> Result<()> {
-        let res = filename
-            .with_nix_path(|cstr| unsafe { libc::acct(cstr.as_ptr()) })?;
+        #[cfg(not(target_os = "aix"))]
+        let res = filename.with_nix_path(|cstr| unsafe { libc::acct(cstr.as_ptr()) })?;
+        #[cfg(target_os = "aix")]
+        let res = filename.with_nix_path(|cstr| unsafe { libc::acct(cstr.as_ptr() as *mut u8) })?;
 
         Errno::result(res).map(drop)
     }
 
     /// Disable process accounting
     pub fn disable() -> Result<()> {
+        #[cfg(not(target_os = "aix"))]
         let res = unsafe { libc::acct(ptr::null()) };
+        #[cfg(target_os = "aix")]
+        let res = unsafe { libc::acct(core::ptr::null_mut()) };
 
         Errno::result(res).map(drop)
     }
