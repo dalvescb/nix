@@ -10,9 +10,8 @@ use std::mem;
 use std::os::unix::prelude::*;
 
 use crate::errno::Errno;
-#[cfg(not(target_os = "aix"))]
 use crate::sys::termios::Termios;
-#[cfg(all(feature = "process", not(target_os = "aix")))]
+#[cfg(all(feature = "process"))]
 use crate::unistd::Pid;
 use crate::{fcntl, unistd, Result};
 
