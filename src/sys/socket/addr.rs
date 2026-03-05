@@ -449,6 +449,7 @@ impl UnixAddr {
                      solarish,
                      target_os = "redox",
                      target_os = "cygwin",
+                     target_os = "aix",
                 ))]
             {
                 UnixAddr { sun, sun_len }
