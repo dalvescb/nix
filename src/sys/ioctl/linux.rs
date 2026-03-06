@@ -4,6 +4,7 @@ use cfg_if::cfg_if;
 #[cfg(any(
     target_os = "android",
     target_os = "fuchsia",
+    target_os = "aix",
     target_env = "musl",
     target_env = "ohos"
 ))]
@@ -12,6 +13,7 @@ pub type ioctl_num_type = ::libc::c_int;
 #[cfg(not(any(
     target_os = "android",
     target_os = "fuchsia",
+    target_os = "aix",
     target_env = "musl",
     target_env = "ohos"
 )))]
