@@ -308,6 +308,7 @@ fn test_setgroups() {
     target_os = "redox",
     target_os = "fuchsia",
     target_os = "haiku",
+    target_os = "aix",
     solarish
 )))]
 fn test_initgroups() {
