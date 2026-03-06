@@ -168,6 +168,9 @@ feature! {
     #![feature = "term"]
     #[deny(missing_docs)]
     pub mod pty;
+
+    #[cfg(target_os = "aix")]
+    pub mod pty_compat;
 }
 feature! {
     #![feature = "sched"]
