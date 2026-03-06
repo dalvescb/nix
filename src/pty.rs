@@ -5,7 +5,6 @@ pub use libc::winsize as Winsize;
 
 use std::ffi::CStr;
 use std::io;
-#[cfg(not(target_os = "aix"))]
 use std::mem;
 use std::os::unix::prelude::*;
 
@@ -251,7 +250,6 @@ pub fn unlockpt(fd: &PtyMaster) -> Result<()> {
 /// the values in `winsize`. If `termios` is not `None`, the pseudoterminal's
 /// terminal settings of the slave will be set to the values in `termios`.
 #[inline]
-#[cfg(not(target_os = "aix"))]
 pub fn openpty<
     'a,
     'b,
@@ -262,15 +260,22 @@ pub fn openpty<
     termios: U,
 ) -> Result<OpenptyResult> {
     use std::ptr;
+    #[cfg(target_os = "aix")]
+    use crate::pty_compat;
 
     let mut slave = mem::MaybeUninit::<libc::c_int>::uninit();
     let mut master = mem::MaybeUninit::<libc::c_int>::uninit();
+    #[cfg(not(target_os = "aix"))]
+    let openpty_ptr = libc::openpty;
+    #[cfg(target_os = "aix")]
+    let openpty_ptr = pty_compat::openpty;
+
     let ret = {
         match (termios.into(), winsize.into()) {
             (Some(termios), Some(winsize)) => {
                 let inner_termios = termios.get_libc_termios();
                 unsafe {
-                    libc::openpty(
+                    openpty_ptr(
                         master.as_mut_ptr(),
                         slave.as_mut_ptr(),
                         ptr::null_mut(),
@@ -280,7 +285,7 @@ pub fn openpty<
                 }
             }
             (None, Some(winsize)) => unsafe {
-                libc::openpty(
+                openpty_ptr(
                     master.as_mut_ptr(),
                     slave.as_mut_ptr(),
                     ptr::null_mut(),
@@ -291,7 +296,7 @@ pub fn openpty<
             (Some(termios), None) => {
                 let inner_termios = termios.get_libc_termios();
                 unsafe {
-                    libc::openpty(
+                    openpty_ptr(
                         master.as_mut_ptr(),
                         slave.as_mut_ptr(),
                         ptr::null_mut(),
@@ -301,7 +306,7 @@ pub fn openpty<
                 }
             }
             (None, None) => unsafe {
-                libc::openpty(
+                openpty_ptr(
                     master.as_mut_ptr(),
                     slave.as_mut_ptr(),
                     ptr::null_mut(),
@@ -346,12 +351,13 @@ feature! {
 ///
 /// * [FreeBSD](https://man.freebsd.org/cgi/man.cgi?query=forkpty)
 /// * [Linux](https://man7.org/linux/man-pages/man3/forkpty.3.html)
-#[cfg(not(target_os = "aix"))]
 pub unsafe fn forkpty<'a, 'b, T: Into<Option<&'a Winsize>>, U: Into<Option<&'b Termios>>>(
     winsize: T,
     termios: U,
 ) -> Result<ForkptyResult> {
     use std::ptr;
+    #[cfg(target_os = "aix")]
+    use crate::pty_compat;
 
     let mut master = mem::MaybeUninit::<libc::c_int>::uninit();
 
@@ -368,7 +374,10 @@ pub unsafe fn forkpty<'a, 'b, T: Into<Option<&'a Winsize>>, U: Into<Option<&'b T
         .map(|ws| ws as *const Winsize as *mut _)
         .unwrap_or(ptr::null_mut());
 
+    #[cfg(not(target_os = "aix"))]
     let res = unsafe { libc::forkpty(master.as_mut_ptr(), ptr::null_mut(), term, win) };
+    #[cfg(target_os = "aix")]
+    let res = unsafe { pty_compat::forkpty(master.as_mut_ptr(), ptr::null_mut(), term, win) };
 
     let success_ret = Errno::result(res)?;
     let forkpty_result = match success_ret {
