@@ -56,15 +56,19 @@ pub unsafe fn openpty(
     termp: *const libc::termios,
     winp: *const libc::winsize,
 ) -> c_int {
-    const PTEM: &[u8] = b"ptem\0";
-    const LDTERM: &[u8] = b"ldterm\0";
+    const PTC: &[u8] = b"/dev/ptc\0";
 
     unsafe {
         // Open the main pseudo-terminal device, making sure not to set it as the
         // controlling terminal for this process:
-        let fdm = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+        let fdm = libc::open(PTC.as_ptr(),libc::O_RDWR | libc::O_NOCTTY);
         if fdm < 0 {
             return -1;
+        }
+
+        let fdm_path = libc::ttyname(fdm);
+        if fdm_path.is_null() {
+            return bail(fdm,-1);
         }
 
         // Set permissions and ownership on the subordinate device and unlock it:
@@ -72,35 +76,20 @@ pub unsafe fn openpty(
             return bail(fdm, -1);
         }
 
-        // Get the path name of the subordinate device:
-        let subordpath = libc::ptsname(fdm);
-        if subordpath.is_null() {
-            return bail(fdm, -1);
-        }
-
         // Open the subordinate device without setting it as the controlling
         // terminal for this process:
-        let fds = libc::open(subordpath, libc::O_RDWR | libc::O_NOCTTY);
+        let fds = libc::open(fdm_path, libc::O_RDWR | libc::O_NOCTTY);
         if fds < 0 {
             return bail(fdm, -1);
         }
 
-        // Check if the STREAMS modules are already pushed:
-        let setup = libc::ioctl(fds, libc::I_FIND, LDTERM.as_ptr());
-        if setup < 0 {
-            return bail(fdm, fds);
-        } else if setup == 0 {
-            // The line discipline is not present, so push the appropriate STREAMS
-            // modules for the subordinate device:
-            if libc::ioctl(fds, libc::I_PUSH, PTEM.as_ptr()) < 0
-                || libc::ioctl(fds, libc::I_PUSH, LDTERM.as_ptr()) < 0
-            {
-                return bail(fdm, fds);
-            }
+        let fds_path = libc::ttyname(fds);
+        if fds_path.is_null() {
+            return bail(fds, -1);
         }
 
         // If provided, set the terminal parameters:
-        if !termp.is_null() && libc::tcsetattr(fds, libc::TCSAFLUSH, termp) != 0 {
+        if !termp.is_null() && libc::tcsetattr(fdm, libc::TCSANOW, termp) != 0 {
             return bail(fdm, fds);
         }
 
@@ -115,7 +104,7 @@ pub unsafe fn openpty(
         // upper bound on the copy length for this pointer.  Nobody should pass
         // anything but NULL here, preferring instead to use ptsname(3C) directly.
         if !name.is_null() {
-            libc::strcpy(name, subordpath);
+            libc::strcpy(name, fds_path);
         }
 
         *amain = fdm;
